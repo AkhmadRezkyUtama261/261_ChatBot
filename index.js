@@ -32,7 +32,27 @@ app.post("/api/chat", async (req, res) => {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`
                 },
+
+                body: JSON.stringify({
+                    model: "nvidia/nemotron-3.5-super-vl:free",
+                    messages: messages,
+                    temperature: 0.7,
+                    max_tokens: 1000,
+                    stream: true
+                })
             }
-        )
+        );
+
+        if (!response.ok) {
+            const errorData = await response.text();
+
+            console.error("OpenRouter Error:", errorData);
+
+            return res.status(response.status).json({
+                error: errorData
+            });
+        }
+
+        
     }
 })
