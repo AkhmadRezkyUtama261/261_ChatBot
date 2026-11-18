@@ -4,23 +4,23 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT;
 
 app.use(express.json());
 app.use(express.static("public"));
 
 app.get("/", (req, res) => {
     res.redirect("/index.html");
-});
+})
 
 app.post("/api/chat", async (req, res) => {
     try {
-        const messages = req.body.messages;
+        const messages = req.body.message;
 
-        if (!messages || !Array.isArray(messages)) {
-            return res.status(400),json({
-                error: "messages harus berupa array"
-            });
+        if (!messages || !Array.isArray(messages)){
+            return res.status(400).json({
+                error: "Messages harus berupa array"
+            })
         }
 
         const response = await fetch(
@@ -34,7 +34,7 @@ app.post("/api/chat", async (req, res) => {
                 },
 
                 body: JSON.stringify({
-                    model: "nvidia/nemotron-3.5-super-vl:free",
+                    model: "nvidia/nemotron-3.5-super-v1:free",
                     messages: messages,
                     temperature: 0.7,
                     max_tokens: 1000,
@@ -46,7 +46,7 @@ app.post("/api/chat", async (req, res) => {
         if (!response.ok) {
             const errorData = await response.text();
 
-            console.error("OpenRouter Error:", errorData);
+            console.error("OpenRouter Error", errorData);
 
             return res.status(response.status).json({
                 error: errorData
@@ -54,8 +54,8 @@ app.post("/api/chat", async (req, res) => {
         }
 
         //Header untuk streaming
-        res.setHeader("Content-Type", "text/event-stream");
-        res.setHeader("Cache-Control;", "no-cache");
+        res.setHeader("Content-Type", "Text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
 
         const reader = response.body.getReader();
@@ -64,66 +64,68 @@ app.post("/api/chat", async (req, res) => {
         let buffer = "";
 
         while (true) {
-            const { done, value } = await reader.read();
+            const {done, value} = await reader.read();
 
-            if (done) {
+            if(done) {
                 break;
             }
 
-            buffer += decoder.decode(value, {
+            buffer += decoder(value, {
                 stream: true
-            });
+            })
 
             const lines = buffer.split("\n");
 
             //simpan bagian terakhir karena mungkin belum lengkap
             buffer = lines.pop();
 
-            for (const line of lines) {
-                
+            for(const line of lines) {
                 const trimmedLine = line.trim();
 
-                if (trimmedLine) {
+                if (!trimmedLine) {
                     continue;
                 }
 
-                if (!trimmiedLine,starsWith("data:")) {
+                if (!trimmedLine.startsWith("data:")) {
                     continue;
                 }
+
                 const data = trimmedLine.slice(5).trim();
 
-                if (data === "[DONE]") {
-                continue;
+                if(data === "[DONE]") {
+                    continue;
                 }
 
                 try {
-                    const json = JSON.parse(data);
+                    const json = JSON.parse(data)
 
-                    const content =
-                        json.choices?.[0]?.delta?.content;
+                    const content = json.choices?.[0].delta?.content;
 
                     if (content) {
                         res.write(`data: ${JSON.stringify(content)}\n\n`);
                     }
-
-                    catch error //belum selesai
                 }
-
+                catch(err){
+                    console.error(
+                        "gagal parsing streaming data",
+                        err
+                    )
+                }
             }
-
         }
 
-    } catch (error) {
-
-        console.error("server error", error);
-
-        if (!res.headersSent) {
+        res.write("data: [DONE]\n\n");
+        res.end();
+    }
+    catch(err){
+        console.error("Server Error", err);
+        if(!res.headersSent) {
             res.status(500).json({
                 error: "Terjadi kesalahan pada server"
             });
         } else {
             res.write(
-                `data: ${JSON.stringify(
+                `data : ${JSON.stringify(
                     "Terjadi kesalahan pada server"
                 )}\n\n`
             );
@@ -134,5 +136,5 @@ app.post("/api/chat", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server berjalan di http://localhost:$[PORT]`)
-})
+    console.log(`Server berjalan di http://localhost:${PORT}`);
+});
